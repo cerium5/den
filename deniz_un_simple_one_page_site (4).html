@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Deniz Ün — Spiral Bio</title>
+  <style>
+    :root {
+      --overlay: rgba(0, 0, 0, 0.35);
+      --text: #f7f9ff;
+      --muted: #e6e9f2;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      color: var(--text);
+      background: #000;
+      overflow: hidden;
+    }
+    /* Background: LHC */
+    .bg {
+      position: fixed; inset: 0; z-index: -2;
+      background:
+        linear-gradient(135deg, rgba(0,0,0,0.45), rgba(30,0,60,0.55), rgba(0,40,90,0.55)),
+        url('https://upload.wikimedia.org/wikipedia/commons/0/0d/Inside_the_CERN_LHC_tunnel.jpg') center / cover no-repeat fixed;
+      filter: saturate(1.3) contrast(1.15) brightness(1.1);
+    }
+    /* A soft vignette to make text pop */
+    .vignette { position: fixed; inset: -20vmin; z-index: -1;
+      background: radial-gradient(60vmin 60vmin at 50% 50%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.35) 60%, rgba(0,0,0,0.65) 100%);
+      pointer-events: none;
+    }
+
+    svg { width: 100vw; height: 100vh; display: block; }
+    .bio-text {
+      fill: url(#textGradient);
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      filter: drop-shadow(0 0 6px rgba(255,255,255,0.5));
+      animation: hue 6s linear infinite;
+    }
+
+    /* Responsive type along the spiral */
+    @media (max-width: 640px) {
+      .bio-text { font-size: 14px; }
+    }
+    @media (min-width: 641px) and (max-width: 1024px) {
+      .bio-text { font-size: 16px; }
+    }
+    @media (min-width: 1025px) {
+      .bio-text { font-size: 18px; }
+    }
+
+    /* A minimal header for context (accessible) */
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,1px,1px); white-space: nowrap; border: 0; }
+    .credit { position: fixed; left: 0; right: 0; bottom: 10px; text-align: center; font-size: 12px; color: rgba(255,255,255,0.75); }
+    @keyframes hue {
+      0% { filter: drop-shadow(0 0 6px rgba(255,255,255,0.6)) hue-rotate(0deg); }
+      100% { filter: drop-shadow(0 0 6px rgba(255,255,255,0.6)) hue-rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg" aria-hidden="true"></div>
+  <div class="vignette" aria-hidden="true"></div>
+
+  <h1 class="sr-only">Deniz Ün — Spiral Bio</h1>
+
+  <svg id="spiralSVG" role="img" aria-label="Deniz Ün biyografisi spiral metin">
+    <defs>
+      <path id="spiralPath" d="M 0 0" />
+      <linearGradient id="textGradient" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1000" y2="0">
+        <stop offset="0%" stop-color="#ff66cc" />
+        <stop offset="50%" stop-color="#66ccff" />
+        <stop offset="100%" stop-color="#7bff9f" />
+      </linearGradient>
+    </defs>
+    <!-- The actual text painted along the spiral path -->
+    <text class="bio-text">
+      <textPath id="bioTextPath" href="#spiralPath" startOffset="0%"></textPath>
+    </text>
+  </svg>
+
+  <div class="credit">Background: Large Hadron Collider tunnel (Wikimedia Commons)</div>
+
+  <script>
+    const svg = document.getElementById('spiralSVG');
+    const pathEl = document.getElementById('spiralPath');
+    const textPath = document.getElementById('bioTextPath');
+
+    const baseText = `My name is Deniz Ün and I study physics in Hamburg. I am a calm person and I enjoy having a simple life. I am often busy with assignments and studying, so I don’t have many hobbies at the moment. In my free time, I usually relax or take a nap. In the future, I want to do a master’s degree in biophysics or medical physics and continue in research. I’m still not sure whether I want to stay in a social state, and sometimes I imagine doing my master near warmer seas.`;
+
+    // Repeat the text to fill a long spiral path
+    const repeated = Array.from({length: 50}).map(() => baseText + ' ').join('');
+    textPath.textContent = repeated;
+
+    function drawSpiral() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+
+      const cx = w / 2; // center
+      const cy = h / 2;
+
+      // Archimedean spiral: r = a + b * θ
+      const loops = 7;                // how many turns
+      const a = Math.min(w, h) * 0.02; // initial radius
+      const b = Math.min(w, h) * 0.012; // spacing between coils
+      const steps = 3200;              // smoothness
+      const thetaMax = loops * Math.PI * 2;
+
+      let d = '';
+      for (let i = 0; i <= steps; i++) {
+        const t = thetaMax * (i / steps);
+        const r = a + b * t;
+        const x = cx + r * Math.cos(t);
+        const y = cy + r * Math.sin(t);
+        d += (i === 0 ? 'M' : 'L') + x.toFixed(2) + ' ' + y.toFixed(2) + ' ';
+      }
+      pathEl.setAttribute('d', d);
+    }
+
+    drawSpiral();
+    window.addEventListener('resize', () => {
+      // Throttle resize updates for performance
+      clearTimeout(window.__spiralTO);
+      window.__spiralTO = setTimeout(drawSpiral, 80);
+    });
+  </script>
+</body>
+</html>
