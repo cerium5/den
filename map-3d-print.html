@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Harita → 3D Baskı STL</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #1a1a2e; color: #eee; height: 100vh; display: flex; flex-direction: column; }
+  header { padding: 12px 20px; background: #16213e; border-bottom: 1px solid #0f3460; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  header h1 { font-size: 1.1rem; color: #e94560; white-space: nowrap; }
+  .controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; flex: 1; }
+  .ctrl-group { display: flex; flex-direction: column; gap: 3px; min-width: 120px; }
+  .ctrl-group label { font-size: 0.7rem; color: #aaa; }
+  .ctrl-group input[type=range] { width: 100%; accent-color: #e94560; }
+  .ctrl-group span { font-size: 0.75rem; color: #fff; text-align: center; }
+  button { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: opacity 0.2s; }
+  button:hover { opacity: 0.85; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  #btn-draw { background: #0f3460; color: #fff; }
+  #btn-generate { background: #e94560; color: #fff; }
+  #btn-clear { background: #444; color: #fff; }
+  #map { flex: 1; }
+  #statusbar { padding: 6px 16px; background: #16213e; font-size: 0.78rem; color: #aaa; border-top: 1px solid #0f3460; min-height: 28px; display: flex; align-items: center; gap: 12px; }
+  #progress-wrap { display: none; flex: 1; max-width: 300px; }
+  #progress-bar { width: 100%; height: 8px; appearance: none; border-radius: 4px; accent-color: #e94560; }
+  #status-text { flex: 1; }
+  .info-box { position: absolute; bottom: 48px; right: 10px; z-index: 1000; background: rgba(22,33,62,0.92); border: 1px solid #0f3460; border-radius: 8px; padding: 10px 14px; font-size: 0.75rem; color: #ccc; max-width: 220px; line-height: 1.5; }
+  .info-box strong { color: #e94560; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🗺️ Harita → 3D STL</h1>
+  <div class="controls">
+    <div class="ctrl-group">
+      <label>Çözünürlük: <span id="lbl-res">40</span>×<span id="lbl-res2">40</span></label>
+      <input type="range" id="sl-res" min="15" max="70" value="40">
+    </div>
+    <div class="ctrl-group">
+      <label>Z Ölçeği: <span id="lbl-z">4</span>×</label>
+      <input type="range" id="sl-z" min="1" max="15" value="4">
+    </div>
+    <div class="ctrl-group">
+      <label>Taban (mm): <span id="lbl-base">3</span></label>
+      <input type="range" id="sl-base" min="1" max="10" value="3">
+    </div>
+    <button id="btn-draw">📐 Bölge Seç</button>
+    <button id="btn-generate" disabled>⬇️ STL İndir</button>
+    <button id="btn-clear">🗑️ Temizle</button>
+  </div>
+</header>
+
+<div id="map"></div>
+
+<div class="info-box">
+  <strong>Nasıl kullanılır?</strong><br>
+  1. <em>Bölge Seç</em> butonuna tıkla<br>
+  2. Haritada dikdörtgen çiz<br>
+  3. <em>STL İndir</em> butonuna tıkla<br>
+  4. .stl dosyasını Cura/PrusaSlicer'da aç
+</div>
+
+<div id="statusbar">
+  <span id="status-text">Bölge seçmek için "Bölge Seç" butonuna tıklayın.</span>
+  <div id="progress-wrap">
+    <progress id="progress-bar" max="100" value="0"></progress>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script>
+// ─── Map setup ───────────────────────────────────────────────────────────────
+const map = L.map('map').setView([53.55, 10.0], 12);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors', maxZoom: 19
+}).addTo(map);
+
+// ─── Draw control ────────────────────────────────────────────────────────────
+const drawnItems = new L.FeatureGroup().addTo(map);
+const drawControl = new L.Control.Draw({
+  draw: { rectangle: { shapeOptions: { color: '#e94560', weight: 2 } }, polygon: false, polyline: false, circle: false, circlemarker: false, marker: false },
+  edit: { featureGroup: drawnItems, remove: false }
+});
+
+let currentBounds = null;
+
+// ─── UI refs ─────────────────────────────────────────────────────────────────
+const slRes   = document.getElementById('sl-res');
+const slZ     = document.getElementById('sl-z');
+const slBase  = document.getElementById('sl-base');
+const lblRes  = document.getElementById('lbl-res');
+const lblRes2 = document.getElementById('lbl-res2');
+const lblZ    = document.getElementById('lbl-z');
+const lblBase = document.getElementById('lbl-base');
+const btnDraw = document.getElementById('btn-draw');
+const btnGen  = document.getElementById('btn-generate');
+const btnClear= document.getElementById('btn-clear');
+const statusTxt = document.getElementById('status-text');
+const progressWrap = document.getElementById('progress-wrap');
+const progressBar  = document.getElementById('progress-bar');
+
+slRes.addEventListener('input',  () => { lblRes.textContent = slRes.value; lblRes2.textContent = slRes.value; });
+slZ.addEventListener('input',    () => { lblZ.textContent = slZ.value; });
+slBase.addEventListener('input', () => { lblBase.textContent = slBase.value; });
+
+function setStatus(msg) { statusTxt.textContent = msg; }
+function setProgress(v, max) {
+  progressWrap.style.display = 'block';
+  progressBar.max = max; progressBar.value = v;
+  if (v >= max) setTimeout(() => { progressWrap.style.display = 'none'; }, 600);
+}
+
+// ─── Draw buttons ────────────────────────────────────────────────────────────
+btnDraw.addEventListener('click', () => {
+  map.addControl(drawControl);
+  new L.Draw.Rectangle(map, drawControl.options.draw.rectangle).enable();
+  setStatus('Haritada dikdörtgen çizin...');
+});
+
+btnClear.addEventListener('click', () => {
+  drawnItems.clearLayers();
+  currentBounds = null;
+  btnGen.disabled = true;
+  setStatus('Temizlendi. Yeni bölge seçebilirsiniz.');
+});
+
+map.on(L.Draw.Event.CREATED, (e) => {
+  drawnItems.clearLayers();
+  drawnItems.addLayer(e.layer);
+  currentBounds = e.layer.getBounds();
+  btnGen.disabled = false;
+  const sw = currentBounds.getSouthWest(), ne = currentBounds.getNorthEast();
+  setStatus(`Bölge seçildi: ${sw.lat.toFixed(4)},${sw.lng.toFixed(4)} → ${ne.lat.toFixed(4)},${ne.lng.toFixed(4)}`);
+});
+
+// ─── Elevation fetch ──────────────────────────────────────────────────────────
+async function fetchElevationBatch(locations) {
+  // locations = [{lat, lng}, ...]
+  const locStr = locations.map(l => `${l.lat},${l.lng}`).join('|');
+  const resp = await fetch('https://api.opentopodata.org/v1/srtm30m', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ locations: locStr })
+  });
+  if (!resp.ok) throw new Error(`API error: ${resp.status}`);
+  const data = await resp.json();
+  if (data.status !== 'OK') throw new Error(`API status: ${data.status}`);
+  return data.results.map(r => r.elevation ?? 0);
+}
+
+async function fetchAllElevations(grid, onProgress) {
+  const flat = grid.flat();
+  const BATCH = 100;
+  const elevations = [];
+  for (let i = 0; i < flat.length; i += BATCH) {
+    const batch = flat.slice(i, i + BATCH);
+    const elev = await fetchElevationBatch(batch);
+    elevations.push(...elev);
+    onProgress(Math.min(i + BATCH, flat.length), flat.length);
+    // small delay to respect API rate limit
+    if (i + BATCH < flat.length) await new Promise(r => setTimeout(r, 350));
+  }
+  // reshape back to 2D grid
+  const N = grid.length;
+  const M = grid[0].length;
+  const result = [];
+  for (let r = 0; r < N; r++) {
+    result.push(elevations.slice(r * M, r * M + M));
+  }
+  return result;
+}
+
+// ─── STL generation ───────────────────────────────────────────────────────────
+function buildSTL(elevGrid, zScale, baseThicknessMm, physWidthMm, physHeightMm) {
+  const rows = elevGrid.length;
+  const cols = elevGrid[0].length;
+
+  const minElev = Math.min(...elevGrid.flat());
+  const maxElev = Math.max(...elevGrid.flat());
+  const elevRange = maxElev - minElev || 1;
+
+  // Map elevation to mm: normalize 0..1 then scale to a nice height
+  const maxTerrainMm = 30; // max terrain height in mm
+  function elevToZ(e) {
+    return ((e - minElev) / elevRange) * maxTerrainMm * zScale / 4;
+  }
+
+  const dx = physWidthMm / (cols - 1);
+  const dy = physHeightMm / (rows - 1);
+  const baseZ = 0;
+  const basePlate = baseThicknessMm; // bottom plate thickness
+
+  // vertices[r][c] = {x, y, z}
+  const verts = [];
+  for (let r = 0; r < rows; r++) {
+    const row = [];
+    for (let c = 0; c < cols; c++) {
+      row.push({ x: c * dx, y: r * dy, z: elevToZ(elevGrid[r][c]) + basePlate });
+    }
+    verts.push(row);
+  }
+
+  const triangles = [];
+
+  function addTri(a, b, c) {
+    // compute normal
+    const ux = b.x - a.x, uy = b.y - a.y, uz = b.z - a.z;
+    const vx = c.x - a.x, vy = c.y - a.y, vz = c.z - a.z;
+    const nx = uy * vz - uz * vy;
+    const ny = uz * vx - ux * vz;
+    const nz = ux * vy - uy * vx;
+    const len = Math.sqrt(nx*nx + ny*ny + nz*nz) || 1;
+    triangles.push({ n: [nx/len, ny/len, nz/len], v: [a, b, c] });
+  }
+
+  // Top surface
+  for (let r = 0; r < rows - 1; r++) {
+    for (let c = 0; c < cols - 1; c++) {
+      const a = verts[r][c], b = verts[r+1][c], d = verts[r][c+1], e2 = verts[r+1][c+1];
+      addTri(a, b, e2);
+      addTri(a, e2, d);
+    }
+  }
+
+  // Bottom plate (flat, z=0)
+  const W = (cols - 1) * dx, H = (rows - 1) * dy;
+  const b0 = {x:0, y:0, z:0}, b1 = {x:W, y:0, z:0}, b2 = {x:W, y:H, z:0}, b3 = {x:0, y:H, z:0};
+  addTri(b0, b2, b1);
+  addTri(b0, b3, b2);
+
+  // Side walls
+  // Front (r=0)
+  for (let c = 0; c < cols - 1; c++) {
+    const t0 = verts[0][c], t1 = verts[0][c+1];
+    const f0 = {x:t0.x, y:t0.y, z:0}, f1 = {x:t1.x, y:t1.y, z:0};
+    addTri(t0, f0, t1);
+    addTri(f0, f1, t1);
+  }
+  // Back (r=rows-1)
+  for (let c = 0; c < cols - 1; c++) {
+    const t0 = verts[rows-1][c], t1 = verts[rows-1][c+1];
+    const f0 = {x:t0.x, y:t0.y, z:0}, f1 = {x:t1.x, y:t1.y, z:0};
+    addTri(t0, t1, f0);
+    addTri(f0, t1, f1);
+  }
+  // Left (c=0)
+  for (let r = 0; r < rows - 1; r++) {
+    const t0 = verts[r][0], t1 = verts[r+1][0];
+    const f0 = {x:t0.x, y:t0.y, z:0}, f1 = {x:t1.x, y:t1.y, z:0};
+    addTri(t0, t1, f0);
+    addTri(f0, t1, f1);
+  }
+  // Right (c=cols-1)
+  for (let r = 0; r < rows - 1; r++) {
+    const t0 = verts[r][cols-1], t1 = verts[r+1][cols-1];
+    const f0 = {x:t0.x, y:t0.y, z:0}, f1 = {x:t1.x, y:t1.y, z:0};
+    addTri(t0, f0, t1);
+    addTri(f0, f1, t1);
+  }
+
+  return serializeSTL(triangles);
+}
+
+function serializeSTL(triangles) {
+  const buf = new ArrayBuffer(84 + triangles.length * 50);
+  const view = new DataView(buf);
+  // header (80 bytes)
+  const enc = new TextEncoder();
+  enc.encodeInto('3D Map Print - generated by map-3d-print.html'.padEnd(80), new Uint8Array(buf, 0, 80));
+  view.setUint32(80, triangles.length, true);
+  let offset = 84;
+  for (const t of triangles) {
+    view.setFloat32(offset,    t.n[0], true); offset += 4;
+    view.setFloat32(offset,    t.n[1], true); offset += 4;
+    view.setFloat32(offset,    t.n[2], true); offset += 4;
+    for (const v of t.v) {
+      view.setFloat32(offset,  v.x, true); offset += 4;
+      view.setFloat32(offset,  v.y, true); offset += 4;
+      view.setFloat32(offset,  v.z, true); offset += 4;
+    }
+    view.setUint16(offset, 0, true); offset += 2;
+  }
+  return buf;
+}
+
+function downloadSTL(buffer, filename) {
+  const blob = new Blob([buffer], { type: 'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ─── Haversine distance (meters) ─────────────────────────────────────────────
+function haversineDist(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// ─── Main generate handler ────────────────────────────────────────────────────
+btnGen.addEventListener('click', async () => {
+  if (!currentBounds) return;
+
+  btnGen.disabled = true;
+  btnDraw.disabled = true;
+  btnClear.disabled = true;
+
+  try {
+    const N = parseInt(slRes.value);
+    const zScale = parseInt(slZ.value);
+    const baseMm = parseInt(slBase.value);
+
+    const sw = currentBounds.getSouthWest();
+    const ne = currentBounds.getNorthEast();
+
+    // Build lat/lng grid
+    const grid = [];
+    for (let r = 0; r < N; r++) {
+      const row = [];
+      const lat = sw.lat + (ne.lat - sw.lat) * r / (N - 1);
+      for (let c = 0; c < N; c++) {
+        const lng = sw.lng + (ne.lng - sw.lng) * c / (N - 1);
+        row.push({ lat, lng });
+      }
+      grid.push(row);
+    }
+
+    const totalPoints = N * N;
+    setStatus(`Yükseklik verileri alınıyor… (${totalPoints} nokta)`);
+    setProgress(0, totalPoints);
+
+    const elevGrid = await fetchAllElevations(grid, (done, total) => {
+      setProgress(done, total);
+      setStatus(`Yükseklik verileri alınıyor… ${done}/${total}`);
+    });
+
+    setStatus('STL oluşturuluyor…');
+
+    // Physical size: fit in 150mm wide
+    const physW = haversineDist(sw.lat, sw.lng, sw.lat, ne.lng) / 1000 * 150 / Math.max(
+      haversineDist(sw.lat, sw.lng, sw.lat, ne.lng),
+      haversineDist(sw.lat, sw.lng, ne.lat, sw.lng)
+    ) * 1000; // clamp to 150mm
+    const physH = haversineDist(sw.lat, sw.lng, ne.lat, sw.lng) / 1000 * 150 / Math.max(
+      haversineDist(sw.lat, sw.lng, sw.lat, ne.lng) / 1000,
+      haversineDist(sw.lat, sw.lng, ne.lat, sw.lng) / 1000
+    );
+
+    const stlBuffer = buildSTL(elevGrid, zScale, baseMm, Math.max(physW, 10), Math.max(physH, 10));
+    const fname = `harita_${sw.lat.toFixed(3)}_${sw.lng.toFixed(3)}.stl`;
+    downloadSTL(stlBuffer, fname);
+    setStatus(`✅ İndirildi: ${fname}  (${(stlBuffer.byteLength/1024).toFixed(1)} KB) — Cura veya PrusaSlicer'da açabilirsiniz.`);
+    setProgress(totalPoints, totalPoints);
+  } catch (err) {
+    setStatus(`❌ Hata: ${err.message}`);
+    console.error(err);
+  } finally {
+    btnGen.disabled = false;
+    btnDraw.disabled = false;
+    btnClear.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
