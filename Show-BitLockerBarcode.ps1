@@ -260,7 +260,7 @@ function New-QRMatrix48([string]$digits){
     for ($i=0;$i -lt 15;$i++){ $m[$coords[$i][0],$coords[$i][1]]=$fb[$i] }
     for ($i=0;$i -lt 7;$i++){ $m[($size-1-$i),8]=$fb[$i] }
     for ($i=0;$i -lt 8;$i++){ $m[8,($size-8+$i)]=$fb[7+$i] }
-    return ,$m
+    $script:_qrMatrix = $m
 }
 
 function Find-IrfanView {
@@ -359,7 +359,9 @@ $qrM=$null; $qrPx=0
 if (-not $NoQR){
     try {
         Initialize-GF
-        $qrM=New-QRMatrix48 $digitsOnly
+        $script:_qrMatrix=$null
+        New-QRMatrix48 $digitsOnly
+        $qrM=$script:_qrMatrix
         $qrBorder=4
         $qrPx=(25+2*$qrBorder)*$QRModulePx
     } catch {
