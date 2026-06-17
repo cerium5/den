@@ -275,57 +275,6 @@ function Find-IrfanView {
 }
 
 # ====================== Verifizierbarer QR-PNG-Writer (kein GDI+) ============
-# Schreibt ein Graustufen-PNG direkt per .NET-Streams (DeflateStream + zlib).
-# Dadurch ist das QR-Bild unabhaengig von GDI+/System.Drawing und testbar.
-Add-Type -TypeDefinition @'
-using System; using System.IO; using System.IO.Compression;
-public static class QRPngWriter {
-    static uint[] _t;
-    static QRPngWriter(){
-        _t=new uint[256];
-        for(uint i=0;i<256;i++){uint c=i;for(int k=0;k<8;k++)c=(c&1)!=0?0xEDB88320u^(c>>1):c>>1;_t[i]=c;}
-    }
-    static uint Crc32(byte[] d){uint c=0xFFFFFFFF;foreach(byte b in d)c=_t[(c^b)&0xFF]^(c>>8);return c^0xFFFFFFFF;}
-    static void WriteChunk(Stream s,string tp,byte[] d){
-        int n=d!=null?d.Length:0;
-        byte[] tb=System.Text.Encoding.ASCII.GetBytes(tp);
-        s.WriteByte((byte)(n>>24));s.WriteByte((byte)(n>>16));s.WriteByte((byte)(n>>8));s.WriteByte((byte)n);
-        s.Write(tb,0,4);if(d!=null&&n>0)s.Write(d,0,n);
-        var cb=new byte[4+n];Buffer.BlockCopy(tb,0,cb,0,4);if(d!=null&&n>0)Buffer.BlockCopy(d,0,cb,4,n);
-        uint crc=Crc32(cb);
-        s.WriteByte((byte)(crc>>24));s.WriteByte((byte)(crc>>16));s.WriteByte((byte)(crc>>8));s.WriteByte((byte)crc);
-    }
-    // flat: row-major int[] of 0/1; matSz=25; scale=px/module; border=modules
-    public static void Save(int[] flat,int matSz,string path,int scale,int border){
-        int full=(matSz+2*border)*scale;
-        var sl=new byte[full*(full+1)];int p=0;
-        for(int r=0;r<full;r++){
-            sl[p++]=0;int ir=r/scale-border;
-            for(int c=0;c<full;c++){
-                int ic=c/scale-border;
-                bool blk=ir>=0&&ir<matSz&&ic>=0&&ic<matSz&&flat[ir*matSz+ic]==1;
-                sl[p++]=blk?(byte)0:(byte)255;
-            }
-        }
-        long s1=1,s2=0;foreach(byte b in sl){s1=(s1+b)%65521;s2=(s2+s1)%65521;}
-        byte[] idat;
-        using(var ms=new MemoryStream()){
-            ms.WriteByte(0x78);ms.WriteByte(0x9C);
-            using(var ds=new DeflateStream(ms,CompressionMode.Compress,true))ds.Write(sl,0,sl.Length);
-            ms.WriteByte((byte)(s2>>8));ms.WriteByte((byte)s2);
-            ms.WriteByte((byte)(s1>>8));ms.WriteByte((byte)s1);
-            idat=ms.ToArray();
-        }
-        using(var fs=new FileStream(path,FileMode.Create)){
-            byte[] sig=new byte[]{0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A};fs.Write(sig,0,8);
-            byte[] ihdr=new byte[]{(byte)(full>>24),(byte)(full>>16),(byte)(full>>8),(byte)full,
-                                    (byte)(full>>24),(byte)(full>>16),(byte)(full>>8),(byte)full,8,0,0,0,0};
-            WriteChunk(fs,"IHDR",ihdr);WriteChunk(fs,"IDAT",idat);WriteChunk(fs,"IEND",null);
-        }
-    }
-}
-'@
-
 # ============================== MAIN =========================================
 Add-Type -AssemblyName System.Drawing
 
@@ -403,15 +352,15 @@ if ($qrM){
     $g.DrawString("QR-Code (ganzer Key)",$titleFont,$black,[single]$sideMargin,[single]$y)
     $y+=$titleH
     $qOriginX=[int]($sideMargin+(($contentW-$qrPx)/2))
-    # Matrix in flaches int[]-Array umwandeln und als verifizierbares PNG schreiben
-    $flat=[int[]]::new(625)
-    for ($rr=0;$rr -lt 25;$rr++){ for ($cc=0;$cc -lt 25;$cc++){ $flat[$rr*25+$cc]=$qrM[$rr,$cc] } }
-    $qrTmp=[System.IO.Path]::Combine([System.IO.Path]::GetTempPath(),"_qr_tmp_$PID.png")
-    [QRPngWriter]::Save($flat,25,$qrTmp,$QRModulePx,$qrBorder)
-    $qrBitmap=New-Object System.Drawing.Bitmap($qrTmp)
-    $g.DrawImage($qrBitmap,[int]$qOriginX,[int]$y,[int]$qrPx,[int]$qrPx)
-    $qrBitmap.Dispose()
-    Remove-Item $qrTmp -Force -ErrorAction SilentlyContinue
+    for ($rr=0;$rr -lt 25;$rr++){
+        for ($cc=0;$cc -lt 25;$cc++){
+            if ($qrM[$rr,$cc] -eq 1){
+                $rx=[int]($qOriginX+($cc+$qrBorder)*$QRModulePx)
+                $ry=[int]($y+($rr+$qrBorder)*$QRModulePx)
+                $g.FillRectangle($black,$rx,$ry,$QRModulePx,$QRModulePx)
+            }
+        }
+    }
 }
 $g.Dispose()
 $bmp.Save($OutputPath,[System.Drawing.Imaging.ImageFormat]::Png)
