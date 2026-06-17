@@ -278,9 +278,16 @@ function Find-IrfanView {
 # ============================== MAIN =========================================
 Add-Type -AssemblyName System.Drawing
 
+trap {
+    Write-Host "`nFEHLER: $($_.Exception.Message)" -ForegroundColor Red
+    Read-Host "`nDruecken Sie Enter zum Beenden"
+    exit 1
+}
+
 $info = Get-RecoveryInfo -Mount $MountPoint
 if (-not $info -or $info.Count -eq 0){
     Write-Error "Kein Recovery-Key fuer $MountPoint gefunden. Als Administrator ausfuehren? Laufwerk verschluesselt?"
+    Read-Host "`nDruecken Sie Enter zum Beenden"
     return
 }
 Write-Host "`n=== Gefundene Recovery-Keys ($MountPoint) ===" -ForegroundColor Cyan
@@ -381,3 +388,5 @@ if ($iview){
 } else {
     Write-Warning "IrfanView nicht gefunden: $OutputPath manuell oeffnen (oder -IrfanViewPath nutzen)."
 }
+
+Read-Host "`nDruecken Sie Enter zum Beenden"
