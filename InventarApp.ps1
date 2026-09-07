@@ -1,4 +1,4 @@
-# =====================================================
+﻿# =====================================================
 #  Inventarisierung - App
 #  Gleiche Erfassungslogik wie Inventarisierung.ps1, mit GUI:
 #  dunkles "Deep Space"-Theme, Nebel-Foto als grossflaechiger Hintergrund,
