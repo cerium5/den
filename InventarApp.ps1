@@ -2,14 +2,19 @@
 #  Inventarisierung - App
 #  Gleiche Erfassungslogik wie Inventarisierung.ps1, mit GUI:
 #  dunkles "Deep Space"-Theme, prozedural erzeugter Sternenhimmel
-#  mit Nebeln/Planeten, ein Gravitationslinsen-Gitter (Ecke unten
-#  links) und ein Pulsar-Indikator (Ecke oben rechts) beim Scannen.
+#  mit Nebeln/Planeten, ein Gravitationslinsen-Gitter und Platz
+#  fuer zwei echte Foto-"Figuren" (LIGO / Schwarze-Loecher-Simulation).
 #
-#  Echtes Foto statt Sternenhimmel:
-#  Lege eine Datei "assets\space-bg.jpg" neben dieses Script -
-#  wird automatisch als Hintergrund verwendet, wenn vorhanden.
-#  Zwei bestaetigte, gemeinfreie NASA-Quellen zum Herunterladen:
-#    https://science.nasa.gov/mission/hubble/multimedia/hubble-images/
+#  Echte Fotos statt/zusaetzlich zum prozeduralen Hintergrund:
+#  Lege diese Dateien neben das Script (Ordner "assets"):
+#    assets\nebula.jpg       -> Hintergrundfoto (grossflaechig)
+#    assets\ligo-gw.jpg      -> Bild-Box oben links ("LIGO - Gravitationswellen")
+#    assets\black-holes.jpg  -> Bild-Box oben links ("Simulation: Schwarze Loecher")
+#  Alle drei sind optional - fehlt eine Datei, wird die jeweilige
+#  prozedurale Grafik bzw. gar nichts angezeigt, der Rest bleibt normal.
+#  Gemeinfreie NASA/LIGO-Quellen zum Herunterladen:
+#    https://www.ligo.caltech.edu/image/ligo20160211a
+#    https://commons.wikimedia.org/wiki/File:Black_Hole_Merger.jpg
 #    https://commons.wikimedia.org/wiki/File:Released_to_Public_The_Trifid_Nebula_(NASA)_(411777678).jpg
 #
 #  CSV-Spalten passen zum Snipe-IT Export.
@@ -19,9 +24,13 @@ Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase, Sys
 
 $Basis     = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $CsvPfad   = Join-Path $Basis "Inventar.csv"
-$FotoPfad  = Join-Path $Basis "assets\space-bg.jpg"
 $MerkRaum     = Join-Path $Basis ".letzter_raum"
 $MerkStandort = Join-Path $Basis ".letzter_standort"
+
+$NebulaPfad    = Join-Path $Basis "assets\nebula.jpg"
+$AltFotoPfad   = Join-Path $Basis "assets\space-bg.jpg"   # frueherer Dateiname, wird als Fallback akzeptiert
+$LigoPfad      = Join-Path $Basis "assets\ligo-gw.jpg"
+$KaraDelikPfad = Join-Path $Basis "assets\black-holes.jpg"
 
 # Panel-Hersteller interner Notebook-Displays (werden uebersprungen)
 $InterneDisplays = @("LGD","AUO","BOE","CMN","SHP","IVO","CSO","SDC","LEN","PNP")
@@ -32,7 +41,7 @@ $InterneDisplays = @("LGD","AUO","BOE","CMN","SHP","IVO","CSO","SDC","LEN","PNP"
 [xml]$Xaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Inventarisierung" Width="1080" Height="740"
+        Title="Inventarisierung" Width="1100" Height="780"
         WindowStartupLocation="CenterScreen" Background="#05070D"
         FontFamily="Segoe UI">
 
@@ -71,6 +80,13 @@ $InterneDisplays = @("LGD","AUO","BOE","CMN","SHP","IVO","CSO","SDC","LEN","PNP"
       <Setter Property="Padding" Value="6,5"/>
       <Setter Property="CaretBrush" Value="#3FD3FF"/>
     </Style>
+    <Style x:Key="BildCaption" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="#5B84B8"/>
+      <Setter Property="FontSize" Value="9"/>
+      <Setter Property="TextWrapping" Value="Wrap"/>
+      <Setter Property="TextAlignment" Value="Center"/>
+      <Setter Property="Margin" Value="0,3,0,0"/>
+    </Style>
   </Window.Resources>
 
   <Grid>
@@ -85,11 +101,11 @@ $InterneDisplays = @("LGD","AUO","BOE","CMN","SHP","IVO","CSO","SDC","LEN","PNP"
       </Canvas.Background>
     </Canvas>
 
-    <!-- Optionales echtes Foto (assets\space-bg.jpg), sonst bleibt es leer -->
-    <Image x:Name="FotoBild" Stretch="UniformToFill" Opacity="0.5" Visibility="Collapsed"/>
+    <!-- Optionales echtes Foto (assets\nebula.jpg), sonst bleibt es leer -->
+    <Image x:Name="FotoBild" Stretch="UniformToFill" Opacity="0.55" Visibility="Collapsed"/>
 
     <!-- Inhalts-Panel -->
-    <Border Background="#DE070B16" CornerRadius="12" Margin="20" BorderBrush="#2E4E78" BorderThickness="1">
+    <Border Background="#C8070B16" CornerRadius="12" Margin="20" BorderBrush="#2E4E78" BorderThickness="1">
       <Border.Effect>
         <DropShadowEffect Color="#3FD3FF" Opacity="0.18" BlurRadius="40" ShadowDepth="0"/>
       </Border.Effect>
@@ -102,8 +118,9 @@ $InterneDisplays = @("LGD","AUO","BOE","CMN","SHP","IVO","CSO","SDC","LEN","PNP"
           <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Titel + Pulsar-Indikator -->
+        <!-- Kopfzeile: Foto-Figuren links, Titel Mitte, Pulsar rechts -->
         <DockPanel Grid.Row="0" Margin="0,0,0,16">
+
           <Canvas x:Name="PulsarCanvas" Width="30" Height="30" DockPanel.Dock="Right" VerticalAlignment="Top">
             <Ellipse Width="30" Height="30" Stroke="#274064" StrokeThickness="1"/>
             <Ellipse x:Name="PulsarKern" Width="7" Height="7" Canvas.Left="11.5" Canvas.Top="11.5" Fill="#FFFFFF">
@@ -118,13 +135,28 @@ $InterneDisplays = @("LGD","AUO","BOE","CMN","SHP","IVO","CSO","SDC","LEN","PNP"
               </Line.RenderTransform>
             </Line>
           </Canvas>
+
+          <StackPanel x:Name="LigoBox" DockPanel.Dock="Left" Width="86" Margin="0,0,12,0" Visibility="Collapsed">
+            <Border Width="86" Height="86" BorderBrush="#3FD3FF" BorderThickness="1">
+              <Image x:Name="LigoBild" Stretch="UniformToFill"/>
+            </Border>
+            <TextBlock Text="LIGO · Gravitationswellen" Style="{StaticResource BildCaption}"/>
+          </StackPanel>
+
+          <StackPanel x:Name="SchwarzeLochBox" DockPanel.Dock="Left" Width="86" Margin="0,0,16,0" Visibility="Collapsed">
+            <Border Width="86" Height="86" BorderBrush="#3FD3FF" BorderThickness="1">
+              <Image x:Name="SchwarzeLochBild" Stretch="UniformToFill"/>
+            </Border>
+            <TextBlock Text="Simulation: 2 Schwarze Löcher" Style="{StaticResource BildCaption}"/>
+          </StackPanel>
+
           <StackPanel VerticalAlignment="Center">
             <TextBlock Text="INVENTARISIERUNG" Foreground="#F3F8FF" FontSize="23" FontWeight="Bold"/>
             <TextBlock Text="Feld-Erfassung · Snipe-IT Export" Foreground="#7C93B8" FontSize="12" Margin="1,2,0,0"/>
           </StackPanel>
         </DockPanel>
 
-        <!-- Raum / Standort -->
+        <!-- Raum / Standort / Asset Tag -->
         <WrapPanel Grid.Row="1" Margin="0,0,0,14">
           <StackPanel Margin="0,0,20,0" Width="220">
             <TextBlock Text="RAUM" Foreground="#5B84B8" FontSize="10.5" FontWeight="Bold" Margin="0,0,0,4"/>
@@ -134,14 +166,22 @@ $InterneDisplays = @("LGD","AUO","BOE","CMN","SHP","IVO","CSO","SDC","LEN","PNP"
             <TextBlock Text="STANDORT" Foreground="#5B84B8" FontSize="10.5" FontWeight="Bold" Margin="0,0,0,4"/>
             <TextBox x:Name="TxtStandort" Style="{StaticResource AppTextBox}"/>
           </StackPanel>
+          <StackPanel Margin="0,0,20,0" Width="240">
+            <TextBlock Text="ASSET TAG (Barcode scannen, sonst leer)" Foreground="#5B84B8" FontSize="10.5" FontWeight="Bold" Margin="0,0,0,4"/>
+            <TextBox x:Name="TxtAssetTag" Style="{StaticResource AppTextBox}"/>
+          </StackPanel>
         </WrapPanel>
 
-        <!-- Aktionen -->
+        <!-- Aktionen + Gravitationslinsen-Diagramm -->
         <WrapPanel Grid.Row="2" Margin="0,0,0,14">
           <Button x:Name="BtnScanPc" Content="PC / Notebook scannen" Style="{StaticResource AppButton}"/>
           <Button x:Name="BtnScanMonitor" Content="Monitore scannen" Style="{StaticResource AppButton}"/>
           <Button x:Name="BtnManuell" Content="Zeile manuell hinzufuegen" Style="{StaticResource AppButton}"/>
           <Button x:Name="BtnLoeschen" Content="Ausgewaehlte Zeile loeschen" Style="{StaticResource AppButton}"/>
+          <StackPanel Margin="16,0,0,8" IsHitTestVisible="False">
+            <Canvas x:Name="GravCanvas" Width="180" Height="64"/>
+            <TextBlock Text="Raumzeitkrümmung (Gravitationslinse)" Style="{StaticResource BildCaption}"/>
+          </StackPanel>
         </WrapPanel>
 
         <!-- Tabelle -->
@@ -211,37 +251,55 @@ $InterneDisplays = @("LGD","AUO","BOE","CMN","SHP","IVO","CSO","SDC","LEN","PNP"
 $Reader = New-Object System.Xml.XmlNodeReader $Xaml
 $Window = [Windows.Markup.XamlReader]::Load($Reader)
 
-$TxtRaum        = $Window.FindName("TxtRaum")
-$TxtStandort    = $Window.FindName("TxtStandort")
-$BtnScanPc      = $Window.FindName("BtnScanPc")
-$BtnScanMonitor = $Window.FindName("BtnScanMonitor")
-$BtnManuell     = $Window.FindName("BtnManuell")
-$BtnLoeschen    = $Window.FindName("BtnLoeschen")
-$BtnSpeichern   = $Window.FindName("BtnSpeichern")
-$Grid1          = $Window.FindName("Grid1")
-$TxtStatus      = $Window.FindName("TxtStatus")
-$SpaceCanvas    = $Window.FindName("SpaceCanvas")
-$FotoBild       = $Window.FindName("FotoBild")
-$PulsarRotate   = $Window.FindName("PulsarRotate")
-$PingKreis      = $Window.FindName("PingKreis")
-$PingScale      = $Window.FindName("PingScale")
+$TxtRaum          = $Window.FindName("TxtRaum")
+$TxtStandort      = $Window.FindName("TxtStandort")
+$TxtAssetTag      = $Window.FindName("TxtAssetTag")
+$BtnScanPc        = $Window.FindName("BtnScanPc")
+$BtnScanMonitor   = $Window.FindName("BtnScanMonitor")
+$BtnManuell       = $Window.FindName("BtnManuell")
+$BtnLoeschen      = $Window.FindName("BtnLoeschen")
+$BtnSpeichern     = $Window.FindName("BtnSpeichern")
+$Grid1            = $Window.FindName("Grid1")
+$TxtStatus        = $Window.FindName("TxtStatus")
+$SpaceCanvas      = $Window.FindName("SpaceCanvas")
+$FotoBild         = $Window.FindName("FotoBild")
+$PulsarRotate     = $Window.FindName("PulsarRotate")
+$PingKreis        = $Window.FindName("PingKreis")
+$PingScale        = $Window.FindName("PingScale")
+$LigoBox          = $Window.FindName("LigoBox")
+$LigoBild         = $Window.FindName("LigoBild")
+$SchwarzeLochBox  = $Window.FindName("SchwarzeLochBox")
+$SchwarzeLochBild = $Window.FindName("SchwarzeLochBild")
+$GravCanvas       = $Window.FindName("GravCanvas")
 
 if (Test-Path $MerkRaum)     { $TxtRaum.Text     = (Get-Content $MerkRaum -Raw).Trim() }
 if (Test-Path $MerkStandort) { $TxtStandort.Text = (Get-Content $MerkStandort -Raw).Trim() }
 
-# Echtes Foto verwenden, wenn vorhanden - sonst bleibt der prozedurale
-# Sternenhimmel (weiter unten) der Hintergrund.
-if (Test-Path $FotoPfad) {
+# =====================================================
+#  Optionale echte Fotos laden (alle drei sind optional)
+# =====================================================
+function Bild-Laden {
+    param([string]$Pfad)
+    if (-not (Test-Path $Pfad)) { return $null }
     try {
         $Bmp = New-Object System.Windows.Media.Imaging.BitmapImage
         $Bmp.BeginInit()
         $Bmp.CacheOption = [System.Windows.Media.Imaging.BitmapCacheOption]::OnLoad
-        $Bmp.UriSource = New-Object System.Uri((Resolve-Path $FotoPfad).Path, [System.UriKind]::Absolute)
+        $Bmp.UriSource = New-Object System.Uri((Resolve-Path $Pfad).Path, [System.UriKind]::Absolute)
         $Bmp.EndInit()
-        $FotoBild.Source = $Bmp
-        $FotoBild.Visibility = "Visible"
-    } catch { }
+        return $Bmp
+    } catch { return $null }
 }
+
+$NebulaBmp = Bild-Laden $NebulaPfad
+if (-not $NebulaBmp) { $NebulaBmp = Bild-Laden $AltFotoPfad }
+if ($NebulaBmp) { $FotoBild.Source = $NebulaBmp; $FotoBild.Visibility = "Visible" }
+
+$LigoBmp = Bild-Laden $LigoPfad
+if ($LigoBmp) { $LigoBild.Source = $LigoBmp; $LigoBox.Visibility = "Visible" }
+
+$KaraDelikBmp = Bild-Laden $KaraDelikPfad
+if ($KaraDelikBmp) { $SchwarzeLochBild.Source = $KaraDelikBmp; $SchwarzeLochBox.Visibility = "Visible" }
 
 # =====================================================
 #  Datentabelle (Grundlage fuer die Grid-Anzeige + CSV)
@@ -306,13 +364,19 @@ $BtnScanPc.Add_Click({
         $RamGb  = [math]::Round($sys.TotalPhysicalMemory / 1GB, 0)
         $Serial = $bios.SerialNumber
 
+        # Barcode-Aufkleber hat Vorrang vor der Seriennummer - genau wie in
+        # der Konsolen-Version: gescannt -> das nehmen, sonst Seriennummer.
+        $GescannterTag = $TxtAssetTag.Text.Trim()
+        $AssetTag = if ($GescannterTag) { $GescannterTag } else { $Serial }
+
         Zeile-Hinzufuegen @{
-            AssetTag = $Serial; AssetName = $env:COMPUTERNAME; Seriennummer = $Serial
+            AssetTag = $AssetTag; AssetName = $env:COMPUTERNAME; Seriennummer = $Serial
             Modell = $sys.Model; Kategorie = $Kategorie; Standort = $TxtStandort.Text; Raum = $TxtRaum.Text
             Hostname = $env:COMPUTERNAME; Hersteller = $sys.Manufacturer; Benutzer = $env:USERNAME
             OS = $os.Caption; RamGB = $RamGb; Mac = $Macs; Ip = $Ip; Notiz = ""
         }
-        $TxtStatus.Text = "PC erkannt: $($sys.Manufacturer) $($sys.Model)  SN $Serial"
+        $TxtAssetTag.Clear()
+        $TxtStatus.Text = "PC erkannt: $($sys.Manufacturer) $($sys.Model)  SN $Serial  Tag $AssetTag"
     } catch {
         $TxtStatus.Text = "Geraetedaten konnten nicht gelesen werden."
     }
@@ -436,10 +500,9 @@ $BtnSpeichern.Add_Click({
 })
 
 # =====================================================
-#  Prozeduraler Sternenhimmel: Sterne, Nebel, Planeten,
-#  Gravitationslinsen-Gitter. Laeuft immer als Basis -
-#  ein echtes Foto (assets\space-bg.jpg) liegt optional
-#  halbtransparent darueber.
+#  Prozeduraler Sternenhimmel: Sterne, Nebel, Planeten.
+#  Laeuft immer als Basis - ein echtes Foto (assets\nebula.jpg)
+#  liegt optional halbtransparent darueber.
 # =====================================================
 $Zufall = New-Object System.Random
 
@@ -488,66 +551,11 @@ function Neuer-Planet {
     [void]$SpaceCanvas.Children.Add($Kugel)
 }
 
-function Zeichne-GravitationsGitter {
-    param([double]$X, [double]$Y, [double]$Breite, [double]$Hoehe)
-    $MassX  = $Breite / 2
-    $Sigma  = $Breite / 4.2
-    $Tiefe  = $Hoehe * 0.65
-    $Farbe  = [System.Windows.Media.SolidColorBrush]::new([System.Windows.Media.Color]::FromArgb(130,110,180,255))
-
-    $GitterCanvas = New-Object System.Windows.Controls.Canvas
-    $GitterCanvas.Width = $Breite
-    $GitterCanvas.Height = $Hoehe + $Tiefe
-    [System.Windows.Controls.Canvas]::SetLeft($GitterCanvas, $X)
-    [System.Windows.Controls.Canvas]::SetTop($GitterCanvas, $Y)
-    [void]$SpaceCanvas.Children.Add($GitterCanvas)
-
-    for ($row = 0; $row -le 6; $row++) {
-        $BaseY = $row * ($Hoehe / 6)
-        $Punkte = New-Object System.Windows.Media.PointCollection
-        for ($px = 0; $px -le $Breite; $px += ($Breite/20)) {
-            $d = $px - $MassX
-            $Dip = $Tiefe * [math]::Exp(-($d*$d)/(2*$Sigma*$Sigma))
-            [void]$Punkte.Add((New-Object System.Windows.Point($px, $BaseY + $Dip)))
-        }
-        $Linie = New-Object System.Windows.Shapes.Polyline
-        $Linie.Points = $Punkte
-        $Linie.Stroke = $Farbe
-        $Linie.StrokeThickness = 1
-        [void]$GitterCanvas.Children.Add($Linie)
-    }
-    for ($col = 0; $col -le 8; $col++) {
-        $BaseX = $col * ($Breite / 8)
-        $Punkte = New-Object System.Windows.Media.PointCollection
-        for ($py = 0; $py -le $Hoehe; $py += ($Hoehe/16)) {
-            $d = $BaseX - $MassX
-            $Dip = $Tiefe * [math]::Exp(-($d*$d)/(2*$Sigma*$Sigma))
-            [void]$Punkte.Add((New-Object System.Windows.Point($BaseX, $py + $Dip)))
-        }
-        $Linie = New-Object System.Windows.Shapes.Polyline
-        $Linie.Points = $Punkte
-        $Linie.Stroke = $Farbe
-        $Linie.StrokeThickness = 1
-        [void]$GitterCanvas.Children.Add($Linie)
-    }
-
-    $MassePunkt = New-Object System.Windows.Shapes.Ellipse
-    $MassePunkt.Width = 6; $MassePunkt.Height = 6
-    $MassePunkt.Fill = [System.Windows.Media.SolidColorBrush]::new([System.Windows.Media.Color]::FromRgb(255,193,104))
-    $MassePunkt.Effect = New-Object System.Windows.Media.Effects.DropShadowEffect
-    $MassePunkt.Effect.Color = [System.Windows.Media.Color]::FromRgb(255,193,104)
-    $MassePunkt.Effect.BlurRadius = 16
-    $MassePunkt.Effect.ShadowDepth = 0
-    [System.Windows.Controls.Canvas]::SetLeft($MassePunkt, $MassX - 3)
-    [System.Windows.Controls.Canvas]::SetTop($MassePunkt, $Hoehe + $Tiefe - 3)
-    [void]$GitterCanvas.Children.Add($MassePunkt)
-}
-
 function Baue-Sternenhimmel {
     $Breite = $Window.ActualWidth
     $Hoehe  = $Window.ActualHeight
 
-    # Nebel-Schwaden (dezent, in den Ecken - nicht ueber dem Inhaltsbereich)
+    # Nebel-Schwaden (dezent, in den Ecken)
     Neuer-Nebel -X (-80)              -Y (-60)              -Radius 480 -R 90  -G 70  -B 160
     Neuer-Nebel -X ($Breite - 380)    -Y ($Hoehe - 420)      -Radius 520 -R 40  -G 110 -B 150
 
@@ -574,13 +582,57 @@ function Baue-Sternenhimmel {
     # Planeten weit in den Ecken, hinter dem Panel
     Neuer-Planet -X ($Breite - 150) -Y 40 -Groesse 60 -HellHex "#8FD9FF" -DunkelHex "#1A3A5C" -MitRing $false
     Neuer-Planet -X 40 -Y ($Hoehe - 170) -Groesse 90 -HellHex "#FFD9A0" -DunkelHex "#7A4A20" -MitRing $true
+}
 
-    # Gravitationslinsen-Gitter, unten links
-    Zeichne-GravitationsGitter -X 30 -Y ($Hoehe - 210) -Breite 230 -Hoehe 90
+# Gravitationslinsen-Gitter: eigenes, festes Canvas (nicht vom
+# Datengrid ueberdeckt), warp-Funktion nach Gauss-Kurve.
+function Zeichne-GravitationsGitter {
+    param([System.Windows.Controls.Canvas]$Ziel, [double]$Breite, [double]$Hoehe)
+    $MassX = $Breite / 2
+    $Sigma = $Breite / 4.2
+    $Tiefe = $Hoehe * 0.9
+    $Farbe = [System.Windows.Media.SolidColorBrush]::new([System.Windows.Media.Color]::FromArgb(190,110,180,255))
+
+    for ($row = 0; $row -le 4; $row++) {
+        $BaseY = $row * ($Hoehe / 4)
+        $Punkte = New-Object System.Windows.Media.PointCollection
+        for ($px = 0; $px -le $Breite; $px += ($Breite/16)) {
+            $d = $px - $MassX
+            $Dip = $Tiefe * [math]::Exp(-($d*$d)/(2*$Sigma*$Sigma))
+            [void]$Punkte.Add((New-Object System.Windows.Point($px, [math]::Min($BaseY + $Dip, $Hoehe))))
+        }
+        $Linie = New-Object System.Windows.Shapes.Polyline
+        $Linie.Points = $Punkte; $Linie.Stroke = $Farbe; $Linie.StrokeThickness = 1
+        [void]$Ziel.Children.Add($Linie)
+    }
+    for ($col = 0; $col -le 7; $col++) {
+        $BaseX = $col * ($Breite / 7)
+        $Punkte = New-Object System.Windows.Media.PointCollection
+        for ($py = 0; $py -le $Hoehe; $py += ($Hoehe/10)) {
+            $d = $BaseX - $MassX
+            $Dip = $Tiefe * [math]::Exp(-($d*$d)/(2*$Sigma*$Sigma))
+            [void]$Punkte.Add((New-Object System.Windows.Point($BaseX, [math]::Min($py + $Dip, $Hoehe))))
+        }
+        $Linie = New-Object System.Windows.Shapes.Polyline
+        $Linie.Points = $Punkte; $Linie.Stroke = $Farbe; $Linie.StrokeThickness = 1
+        [void]$Ziel.Children.Add($Linie)
+    }
+
+    $MassePunkt = New-Object System.Windows.Shapes.Ellipse
+    $MassePunkt.Width = 5; $MassePunkt.Height = 5
+    $MassePunkt.Fill = [System.Windows.Media.SolidColorBrush]::new([System.Windows.Media.Color]::FromRgb(255,193,104))
+    $MassePunkt.Effect = New-Object System.Windows.Media.Effects.DropShadowEffect
+    $MassePunkt.Effect.Color = [System.Windows.Media.Color]::FromRgb(255,193,104)
+    $MassePunkt.Effect.BlurRadius = 14
+    $MassePunkt.Effect.ShadowDepth = 0
+    [System.Windows.Controls.Canvas]::SetLeft($MassePunkt, $MassX - 2.5)
+    [System.Windows.Controls.Canvas]::SetTop($MassePunkt, $Hoehe - 6)
+    [void]$Ziel.Children.Add($MassePunkt)
 }
 
 $Window.Add_Loaded({
     Baue-Sternenhimmel
+    Zeichne-GravitationsGitter -Ziel $GravCanvas -Breite $GravCanvas.Width -Hoehe $GravCanvas.Height
 
     $PulsarTimer = New-Object System.Windows.Threading.DispatcherTimer
     $PulsarTimer.Interval = [TimeSpan]::FromMilliseconds(30)
