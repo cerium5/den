@@ -27,10 +27,7 @@ $CsvPfad   = Join-Path $Basis "Inventar.csv"
 $MerkRaum     = Join-Path $Basis ".letzter_raum"
 $MerkStandort = Join-Path $Basis ".letzter_standort"
 
-$NebulaPfad    = Join-Path $Basis "assets\nebula.jpg"
-$AltFotoPfad   = Join-Path $Basis "assets\space-bg.jpg"   # frueherer Dateiname, wird als Fallback akzeptiert
-$LigoPfad      = Join-Path $Basis "assets\ligo-gw.jpg"
-$KaraDelikPfad = Join-Path $Basis "assets\black-holes.jpg"
+$AssetsOrdner  = Join-Path $Basis "assets"
 
 # Panel-Hersteller interner Notebook-Displays (werden uebersprungen)
 $InterneDisplays = @("LGD","AUO","BOE","CMN","SHP","IVO","CSO","SDC","LEN","PNP")
@@ -276,30 +273,71 @@ if (Test-Path $MerkRaum)     { $TxtRaum.Text     = (Get-Content $MerkRaum -Raw).
 if (Test-Path $MerkStandort) { $TxtStandort.Text = (Get-Content $MerkStandort -Raw).Trim() }
 
 # =====================================================
-#  Optionale echte Fotos laden (alle drei sind optional)
+#  Optionale echte Fotos laden (alle drei sind optional).
+#  Findet die Datei unabhaengig von der Endung (.jpg/.jpeg/.png/.jfif/.webp/.bmp) -
+#  Browser speichern JPGs manchmal unter einer anderen Endung ab.
 # =====================================================
+function Bild-Suchen {
+    param([string]$Basisname)
+    foreach ($Ext in @("jpg","jpeg","png","jfif","webp","bmp","gif")) {
+        $Pfad = Join-Path $AssetsOrdner "$Basisname.$Ext"
+        if (Test-Path $Pfad) { return $Pfad }
+    }
+    return $null
+}
+
 function Bild-Laden {
-    param([string]$Pfad)
-    if (-not (Test-Path $Pfad)) { return $null }
+    param([string]$Basisname)
+    $Pfad = Bild-Suchen $Basisname
+    if (-not $Pfad) { return @{ Bmp = $null; Status = "fehlt" } }
     try {
         $Bmp = New-Object System.Windows.Media.Imaging.BitmapImage
         $Bmp.BeginInit()
         $Bmp.CacheOption = [System.Windows.Media.Imaging.BitmapCacheOption]::OnLoad
         $Bmp.UriSource = New-Object System.Uri((Resolve-Path $Pfad).Path, [System.UriKind]::Absolute)
         $Bmp.EndInit()
-        return $Bmp
-    } catch { return $null }
+        return @{ Bmp = $Bmp; Status = "ok"; Datei = (Split-Path -Leaf $Pfad) }
+    } catch {
+        return @{ Bmp = $null; Status = "fehler"; Datei = (Split-Path -Leaf $Pfad) }
+    }
 }
 
-$NebulaBmp = Bild-Laden $NebulaPfad
-if (-not $NebulaBmp) { $NebulaBmp = Bild-Laden $AltFotoPfad }
-if ($NebulaBmp) { $FotoBild.Source = $NebulaBmp; $FotoBild.Visibility = "Visible" }
+$FotoMeldungen = New-Object System.Collections.ArrayList
 
-$LigoBmp = Bild-Laden $LigoPfad
-if ($LigoBmp) { $LigoBild.Source = $LigoBmp; $LigoBox.Visibility = "Visible" }
+$NebulaErg = Bild-Laden "nebula"
+if ($NebulaErg.Status -eq "fehlt") { $NebulaErg = Bild-Laden "space-bg" }   # frueherer Dateiname
+if ($NebulaErg.Bmp) {
+    $FotoBild.Source = $NebulaErg.Bmp; $FotoBild.Visibility = "Visible"
+} elseif ($NebulaErg.Status -eq "fehler") {
+    [void]$FotoMeldungen.Add("nebula ($($NebulaErg.Datei)) konnte nicht geladen werden - Format pruefen")
+}
 
-$KaraDelikBmp = Bild-Laden $KaraDelikPfad
-if ($KaraDelikBmp) { $SchwarzeLochBild.Source = $KaraDelikBmp; $SchwarzeLochBox.Visibility = "Visible" }
+$LigoErg = Bild-Laden "ligo-gw"
+if ($LigoErg.Bmp) {
+    $LigoBild.Source = $LigoErg.Bmp; $LigoBox.Visibility = "Visible"
+} elseif ($LigoErg.Status -eq "fehler") {
+    [void]$FotoMeldungen.Add("ligo-gw ($($LigoErg.Datei)) konnte nicht geladen werden - Format pruefen")
+}
+
+$KaraDelikErg = Bild-Laden "black-holes"
+if ($KaraDelikErg.Bmp) {
+    $SchwarzeLochBild.Source = $KaraDelikErg.Bmp; $SchwarzeLochBox.Visibility = "Visible"
+} elseif ($KaraDelikErg.Status -eq "fehler") {
+    [void]$FotoMeldungen.Add("black-holes ($($KaraDelikErg.Datei)) konnte nicht geladen werden - Format pruefen")
+}
+
+if ($FotoMeldungen.Count -gt 0) {
+    $Window.Title = "Inventarisierung - Foto-Problem: " + ($FotoMeldungen -join " | ")
+}
+
+# Direkt beim Start anzeigen, welche Fotos gefunden wurden - damit man
+# es sofort sieht, ohne den Ordner "assets" selbst durchsuchen zu muessen.
+$FotoStatus = @(
+    "nebula: "       + $(if ($NebulaErg.Bmp) { "geladen" } else { "nicht gefunden" })
+    "ligo-gw: "      + $(if ($LigoErg.Bmp) { "geladen" } else { "nicht gefunden" })
+    "black-holes: "  + $(if ($KaraDelikErg.Bmp) { "geladen" } else { "nicht gefunden" })
+) -join "  ·  "
+$TxtStatus.Text = $FotoStatus
 
 # =====================================================
 #  Datentabelle (Grundlage fuer die Grid-Anzeige + CSV)
