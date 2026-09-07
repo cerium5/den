@@ -1,17 +1,16 @@
 # =====================================================
 #  Inventarisierung - App
 #  Gleiche Erfassungslogik wie Inventarisierung.ps1, mit GUI:
-#  dunkles "Deep Space"-Theme, prozedural erzeugter Sternenhimmel
-#  mit Nebeln/Planeten, ein Gravitationslinsen-Gitter und Platz
-#  fuer zwei echte Foto-"Figuren" (LIGO / Schwarze-Loecher-Simulation).
+#  dunkles "Deep Space"-Theme, Nebel-Foto als grossflaechiger Hintergrund,
+#  prozedural erzeugter Sternenhimmel/Planeten, ein Gravitationslinsen-
+#  Gitter, und ein kleines Pausenspiel (Asteroiden ausweichen) vor dem
+#  Hintergrund der Schwarze-Loecher-Simulation.
 #
-#  Echte Fotos statt/zusaetzlich zum prozeduralen Hintergrund:
+#  Echte Fotos (optional, sonst prozeduraler Ersatz):
 #  Lege diese Dateien neben das Script (Ordner "assets"):
-#    assets\nebula.jpg       -> Hintergrundfoto (grossflaechig)
-#    assets\ligo-gw.jpg      -> Bild-Box oben links ("LIGO - Gravitationswellen")
-#    assets\black-holes.jpg  -> Bild-Box oben links ("Simulation: Schwarze Loecher")
-#  Alle drei sind optional - fehlt eine Datei, wird die jeweilige
-#  prozedurale Grafik bzw. gar nichts angezeigt, der Rest bleibt normal.
+#    assets\nebula.jpg       -> Hintergrundfoto der Hauptansicht
+#    assets\black-holes.jpg  -> Hintergrundfoto im Pausenspiel
+#    assets\ligo-gw.jpg      -> aktuell ungenutzt, wird aber weiter erkannt
 #  Gemeinfreie NASA/LIGO-Quellen zum Herunterladen:
 #    https://www.ligo.caltech.edu/image/ligo20160211a
 #    https://commons.wikimedia.org/wiki/File:Black_Hole_Merger.jpg
@@ -99,10 +98,10 @@ $InterneDisplays = @("LGD","AUO","BOE","CMN","SHP","IVO","CSO","SDC","LEN","PNP"
     </Canvas>
 
     <!-- Optionales echtes Foto (assets\nebula.jpg), sonst bleibt es leer -->
-    <Image x:Name="FotoBild" Stretch="UniformToFill" Opacity="0.55" Visibility="Collapsed"/>
+    <Image x:Name="FotoBild" Stretch="UniformToFill" Opacity="0.85" Visibility="Collapsed"/>
 
     <!-- Inhalts-Panel -->
-    <Border Background="#C8070B16" CornerRadius="12" Margin="20" BorderBrush="#2E4E78" BorderThickness="1">
+    <Border Background="#95070B16" CornerRadius="12" Margin="20" BorderBrush="#2E4E78" BorderThickness="1">
       <Border.Effect>
         <DropShadowEffect Color="#3FD3FF" Opacity="0.18" BlurRadius="40" ShadowDepth="0"/>
       </Border.Effect>
@@ -115,36 +114,25 @@ $InterneDisplays = @("LGD","AUO","BOE","CMN","SHP","IVO","CSO","SDC","LEN","PNP"
           <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Kopfzeile: Foto-Figuren links, Titel Mitte, Pulsar rechts -->
+        <!-- Kopfzeile: Titel links, Pulsar + Pausenspiel-Button rechts -->
         <DockPanel Grid.Row="0" Margin="0,0,0,16">
 
-          <Canvas x:Name="PulsarCanvas" Width="30" Height="30" DockPanel.Dock="Right" VerticalAlignment="Top">
-            <Ellipse Width="30" Height="30" Stroke="#274064" StrokeThickness="1"/>
-            <Ellipse x:Name="PulsarKern" Width="7" Height="7" Canvas.Left="11.5" Canvas.Top="11.5" Fill="#FFFFFF">
-              <Ellipse.Effect>
-                <DropShadowEffect Color="#8FD9FF" Opacity="0.9" BlurRadius="14" ShadowDepth="0"/>
-              </Ellipse.Effect>
-            </Ellipse>
-            <Line x:Name="PulsarStrahl" X1="15" Y1="15" X2="15" Y2="0" Stroke="#8FD9FF" StrokeThickness="1.4"
-                  Opacity="0.85" RenderTransformOrigin="0.5,0.5">
-              <Line.RenderTransform>
-                <RotateTransform x:Name="PulsarRotate" Angle="0"/>
-              </Line.RenderTransform>
-            </Line>
-          </Canvas>
-
-          <StackPanel x:Name="LigoBox" DockPanel.Dock="Left" Width="86" Margin="0,0,12,0" Visibility="Collapsed">
-            <Border Width="86" Height="86" BorderBrush="#3FD3FF" BorderThickness="1">
-              <Image x:Name="LigoBild" Stretch="UniformToFill"/>
-            </Border>
-            <TextBlock Text="LIGO · Gravitationswellen" Style="{StaticResource BildCaption}"/>
-          </StackPanel>
-
-          <StackPanel x:Name="SchwarzeLochBox" DockPanel.Dock="Left" Width="86" Margin="0,0,16,0" Visibility="Collapsed">
-            <Border Width="86" Height="86" BorderBrush="#3FD3FF" BorderThickness="1">
-              <Image x:Name="SchwarzeLochBild" Stretch="UniformToFill"/>
-            </Border>
-            <TextBlock Text="Simulation: 2 Schwarze Löcher" Style="{StaticResource BildCaption}"/>
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+            <Button x:Name="BtnSpiel" Content="🎮 Pausenspiel" Style="{StaticResource AppButton}" Margin="0,0,10,0"/>
+            <Canvas x:Name="PulsarCanvas" Width="30" Height="30">
+              <Ellipse Width="30" Height="30" Stroke="#274064" StrokeThickness="1"/>
+              <Ellipse x:Name="PulsarKern" Width="7" Height="7" Canvas.Left="11.5" Canvas.Top="11.5" Fill="#FFFFFF">
+                <Ellipse.Effect>
+                  <DropShadowEffect Color="#8FD9FF" Opacity="0.9" BlurRadius="14" ShadowDepth="0"/>
+                </Ellipse.Effect>
+              </Ellipse>
+              <Line x:Name="PulsarStrahl" X1="15" Y1="15" X2="15" Y2="0" Stroke="#8FD9FF" StrokeThickness="1.4"
+                    Opacity="0.85" RenderTransformOrigin="0.5,0.5">
+                <Line.RenderTransform>
+                  <RotateTransform x:Name="PulsarRotate" Angle="0"/>
+                </Line.RenderTransform>
+              </Line>
+            </Canvas>
           </StackPanel>
 
           <StackPanel VerticalAlignment="Center">
@@ -264,11 +252,8 @@ $FotoBild         = $Window.FindName("FotoBild")
 $PulsarRotate     = $Window.FindName("PulsarRotate")
 $PingKreis        = $Window.FindName("PingKreis")
 $PingScale        = $Window.FindName("PingScale")
-$LigoBox          = $Window.FindName("LigoBox")
-$LigoBild         = $Window.FindName("LigoBild")
-$SchwarzeLochBox  = $Window.FindName("SchwarzeLochBox")
-$SchwarzeLochBild = $Window.FindName("SchwarzeLochBild")
 $GravCanvas       = $Window.FindName("GravCanvas")
+$BtnSpiel         = $Window.FindName("BtnSpiel")
 
 if (Test-Path $MerkRaum)     { $TxtRaum.Text     = (Get-Content $MerkRaum -Raw).Trim() }
 if (Test-Path $MerkStandort) { $TxtStandort.Text = (Get-Content $MerkStandort -Raw).Trim() }
@@ -320,16 +305,13 @@ if ($NebulaErg.Bmp) {
 }
 
 $LigoErg = Bild-Laden "ligo-gw"
-if ($LigoErg.Bmp) {
-    $LigoBild.Source = $LigoErg.Bmp; $LigoBox.Visibility = "Visible"
-} elseif ($LigoErg.Status -eq "fehler") {
+if ($LigoErg.Status -eq "fehler") {
     [void]$FotoMeldungen.Add("ligo-gw ($($LigoErg.Datei)): $($LigoErg.Fehler)")
 }
 
+# Wird nicht im Hauptfenster verwendet, sondern als Hintergrund im Pausenspiel (weiter unten)
 $KaraDelikErg = Bild-Laden "black-holes"
-if ($KaraDelikErg.Bmp) {
-    $SchwarzeLochBild.Source = $KaraDelikErg.Bmp; $SchwarzeLochBox.Visibility = "Visible"
-} elseif ($KaraDelikErg.Status -eq "fehler") {
+if ($KaraDelikErg.Status -eq "fehler") {
     [void]$FotoMeldungen.Add("black-holes ($($KaraDelikErg.Datei)): $($KaraDelikErg.Fehler)")
 }
 
@@ -678,6 +660,129 @@ function Zeichne-GravitationsGitter {
     [System.Windows.Controls.Canvas]::SetTop($MassePunkt, $Hoehe - 6)
     [void]$Ziel.Children.Add($MassePunkt)
 }
+
+# =====================================================
+#  Pausenspiel: Asteroiden ausweichen
+#  Hintergrund ist die Schwarze-Loecher-Simulation (assets\black-holes.jpg),
+#  falls vorhanden - sonst einfach ein dunkler Hintergrund.
+#  Veraenderlicher Zustand liegt in einem Hashtable ($Spiel), weil separate
+#  Event-Handler in PowerShell sonst unabhaengige Kopien einfacher Variablen
+#  bekommen (GetNewClosure) - ueber ein Hashtable-Objekt teilen sie sich den
+#  Zustand trotzdem korrekt.
+# =====================================================
+function Oeffne-Minispiel {
+    [xml]$SpielXaml = @"
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Pausenspiel - Asteroiden ausweichen" Width="480" Height="640"
+        WindowStartupLocation="CenterScreen" Background="Black" FontFamily="Segoe UI">
+  <Grid>
+    <Canvas x:Name="SpielCanvas" Background="#05070D" ClipToBounds="True" Width="480" Height="640"/>
+    <TextBlock x:Name="TxtPunkte" Text="Punkte: 0" Foreground="#8FD9FF" FontSize="16" FontWeight="Bold"
+               Margin="14,10,0,0" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+    <TextBlock Text="Pfeiltasten ← → zum Ausweichen" Foreground="#5B84B8" FontSize="11"
+               Margin="0,10,14,0" HorizontalAlignment="Right" VerticalAlignment="Top"/>
+    <StackPanel x:Name="EndePanel" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
+      <TextBlock x:Name="TxtEnde" Text="Game Over" Foreground="#FFC168" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center"/>
+      <Button x:Name="BtnNeustart" Content="Neu starten" Margin="0,14,0,0" Padding="14,7"
+              Background="#FFC168" Foreground="#20160A" FontWeight="Bold" BorderThickness="0"/>
+    </StackPanel>
+  </Grid>
+</Window>
+"@
+    $SpielReader  = New-Object System.Xml.XmlNodeReader $SpielXaml
+    $SpielFenster = [Windows.Markup.XamlReader]::Load($SpielReader)
+    $SpielFenster.Owner = $Window
+
+    $SpielCanvas = $SpielFenster.FindName("SpielCanvas")
+    $TxtPunkte   = $SpielFenster.FindName("TxtPunkte")
+    $EndePanel   = $SpielFenster.FindName("EndePanel")
+    $TxtEnde     = $SpielFenster.FindName("TxtEnde")
+    $BtnNeustart = $SpielFenster.FindName("BtnNeustart")
+
+    if ($KaraDelikErg.Bmp) {
+        $Hintergrund = New-Object System.Windows.Controls.Image
+        $Hintergrund.Source = $KaraDelikErg.Bmp
+        $Hintergrund.Stretch = [System.Windows.Media.Stretch]::UniformToFill
+        $Hintergrund.Opacity = 0.5
+        $Hintergrund.Width = 480; $Hintergrund.Height = 640
+        [void]$SpielCanvas.Children.Add($Hintergrund)
+    }
+
+    $SpielerBreite = 34
+    $Spieler = New-Object System.Windows.Shapes.Polygon
+    $Spieler.Points = [System.Windows.Media.PointCollection]::Parse("0,20 17,0 34,20")
+    $Spieler.Fill = [System.Windows.Media.SolidColorBrush]::new([System.Windows.Media.Color]::FromRgb(143,217,255))
+    [System.Windows.Controls.Canvas]::SetTop($Spieler, 570)
+    [System.Windows.Controls.Canvas]::SetLeft($Spieler, 223)
+    [void]$SpielCanvas.Children.Add($Spieler)
+
+    $Zufall2 = New-Object System.Random
+    $Asteroiden = New-Object System.Collections.ArrayList
+    $Spiel = @{ X = 223.0; Punkte = 0; Laeuft = $true; Tick = 0 }
+
+    $SpielFenster.Add_PreviewKeyDown({
+        if (-not $Spiel.Laeuft) { return }
+        if ($_.Key -eq "Left")  { $Spiel.X = [math]::Max(0, $Spiel.X - 18) }
+        if ($_.Key -eq "Right") { $Spiel.X = [math]::Min(480 - $SpielerBreite, $Spiel.X + 18) }
+        [System.Windows.Controls.Canvas]::SetLeft($Spieler, $Spiel.X)
+    }.GetNewClosure())
+
+    $SpielTimer = New-Object System.Windows.Threading.DispatcherTimer
+    $SpielTimer.Interval = [TimeSpan]::FromMilliseconds(35)
+    $SpielTimer.Add_Tick({
+        if (-not $Spiel.Laeuft) { return }
+        $Spiel.Tick++
+        if ($Spiel.Tick % 22 -eq 0) {
+            $Groesse = 16 + $Zufall2.Next(0, 20)
+            $Stein = New-Object System.Windows.Shapes.Ellipse
+            $Stein.Width = $Groesse; $Stein.Height = $Groesse
+            $Stein.Fill = [System.Windows.Media.SolidColorBrush]::new([System.Windows.Media.Color]::FromRgb(255,150,110))
+            $StartX = $Zufall2.Next(0, 480 - $Groesse)
+            [System.Windows.Controls.Canvas]::SetLeft($Stein, $StartX)
+            [System.Windows.Controls.Canvas]::SetTop($Stein, -$Groesse)
+            [void]$SpielCanvas.Children.Add($Stein)
+            [void]$Asteroiden.Add(@{ Element = $Stein; Y = [double](-$Groesse); X = [double]$StartX; Groesse = $Groesse; Speed = 4 + $Zufall2.NextDouble() * 5 })
+        }
+
+        $ZumEntfernen = New-Object System.Collections.ArrayList
+        foreach ($A in $Asteroiden) {
+            $A.Y += $A.Speed
+            [System.Windows.Controls.Canvas]::SetTop($A.Element, $A.Y)
+
+            if (($A.Y + $A.Groesse) -gt 570 -and $A.Y -lt 590 -and
+                ($A.X + $A.Groesse) -gt $Spiel.X -and $A.X -lt ($Spiel.X + $SpielerBreite)) {
+                $Spiel.Laeuft = $false
+                $TxtEnde.Text = "Game Over - Punkte: $($Spiel.Punkte)"
+                $EndePanel.Visibility = "Visible"
+            }
+
+            if ($A.Y -gt 640) {
+                [void]$SpielCanvas.Children.Remove($A.Element)
+                [void]$ZumEntfernen.Add($A)
+                $Spiel.Punkte++
+                $TxtPunkte.Text = "Punkte: $($Spiel.Punkte)"
+            }
+        }
+        foreach ($A in $ZumEntfernen) { [void]$Asteroiden.Remove($A) }
+    }.GetNewClosure())
+    $SpielTimer.Start()
+
+    $BtnNeustart.Add_Click({
+        foreach ($A in $Asteroiden) { [void]$SpielCanvas.Children.Remove($A.Element) }
+        $Asteroiden.Clear()
+        $Spiel.Punkte = 0; $Spiel.Tick = 0; $Spiel.X = 223.0
+        $TxtPunkte.Text = "Punkte: 0"
+        [System.Windows.Controls.Canvas]::SetLeft($Spieler, $Spiel.X)
+        $EndePanel.Visibility = "Collapsed"
+        $Spiel.Laeuft = $true
+    }.GetNewClosure())
+
+    $SpielFenster.Add_Closed({ $SpielTimer.Stop() }.GetNewClosure())
+    [void]$SpielFenster.Show()
+}
+
+$BtnSpiel.Add_Click({ Oeffne-Minispiel })
 
 $Window.Add_Loaded({
     Baue-Sternenhimmel
