@@ -118,7 +118,7 @@ $InterneDisplays = @("LGD","AUO","BOE","CMN","SHP","IVO","CSO","SDC","LEN","PNP"
         <DockPanel Grid.Row="0" Margin="0,0,0,16">
 
           <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
-            <Button x:Name="BtnSpiel" Content="🎮 Pausenspiel" Style="{StaticResource AppButton}" Margin="0,0,10,0"/>
+            <Button x:Name="BtnSpiel" Content="🎮 Physik-Formeln ausweichen" Style="{StaticResource AppButton}" Margin="0,0,10,0"/>
             <Canvas x:Name="PulsarCanvas" Width="30" Height="30">
               <Ellipse Width="30" Height="30" Stroke="#274064" StrokeThickness="1"/>
               <Ellipse x:Name="PulsarKern" Width="7" Height="7" Canvas.Left="11.5" Canvas.Top="11.5" Fill="#FFFFFF">
@@ -674,14 +674,14 @@ function Oeffne-Minispiel {
     [xml]$SpielXaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Pausenspiel - Asteroiden ausweichen" Width="480" Height="640"
+        Title="Pausenspiel - Physik-Formeln ausweichen" Width="480" Height="640"
         WindowStartupLocation="CenterScreen" Background="Black" FontFamily="Segoe UI">
   <Grid>
     <Canvas x:Name="SpielCanvas" Background="#05070D" ClipToBounds="True" Width="480" Height="640"/>
     <TextBlock x:Name="TxtPunkte" Text="Punkte: 0" Foreground="#8FD9FF" FontSize="16" FontWeight="Bold"
                Margin="14,10,0,0" HorizontalAlignment="Left" VerticalAlignment="Top"/>
-    <TextBlock Text="Pfeiltasten ← → zum Ausweichen" Foreground="#5B84B8" FontSize="11"
-               Margin="0,10,14,0" HorizontalAlignment="Right" VerticalAlignment="Top"/>
+    <TextBlock Text="Pfeiltasten ← → - Formeln ausweichen, nebenbei einprägen" Foreground="#5B84B8" FontSize="11"
+               Margin="0,10,14,0" HorizontalAlignment="Right" VerticalAlignment="Top" TextAlignment="Right" TextWrapping="Wrap" Width="230"/>
     <StackPanel x:Name="EndePanel" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
       <TextBlock x:Name="TxtEnde" Text="Game Over" Foreground="#FFC168" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center"/>
       <Button x:Name="BtnNeustart" Content="Neu starten" Margin="0,14,0,0" Padding="14,7"
@@ -721,6 +721,23 @@ function Oeffne-Minispiel {
     $Asteroiden = New-Object System.Collections.ArrayList
     $Spiel = @{ X = 223.0; Punkte = 0; Laeuft = $true; Tick = 0 }
 
+    # Bekannte Physik-Formeln, die als "Meteore" herunterfallen - zum
+    # Ausweichen und nebenbei Wiedererkennen (Klausurvorbereitung).
+    $PhysikFormeln = @(
+        @{ Formel = "E = mc²";                      Name = "Einstein" }
+        @{ Formel = "F = m·a";                       Name = "Newton II" }
+        @{ Formel = "F = G·m₁m₂/r²";                  Name = "Newton (Gravitation)" }
+        @{ Formel = "iħ ∂ψ/∂t = Ĥψ";                  Name = "Schrödinger" }
+        @{ Formel = "(iγᵘ∂ᵤ - m)ψ = 0";                Name = "Dirac" }
+        @{ Formel = "Δx·Δp ≥ ħ/2";                     Name = "Heisenberg" }
+        @{ Formel = "E = h·f";                        Name = "Planck-Einstein" }
+        @{ Formel = "∇·E = ρ/ε₀";                      Name = "Maxwell I" }
+        @{ Formel = "∇×B = μ₀J + μ₀ε₀∂E/∂t";           Name = "Maxwell IV" }
+        @{ Formel = "p·V = n·R·T";                    Name = "Ideales Gas" }
+        @{ Formel = "S = k·ln(Ω)";                     Name = "Boltzmann" }
+        @{ Formel = "Gμν = 8πG/c⁴ · Tμν";              Name = "Einstein (ART)" }
+    )
+
     $SpielFenster.Add_PreviewKeyDown({
         if (-not $Spiel.Laeuft) { return }
         if ($_.Key -eq "Left")  { $Spiel.X = [math]::Max(0, $Spiel.X - 18) }
@@ -733,16 +750,36 @@ function Oeffne-Minispiel {
     $SpielTimer.Add_Tick({
         if (-not $Spiel.Laeuft) { return }
         $Spiel.Tick++
-        if ($Spiel.Tick % 22 -eq 0) {
-            $Groesse = 16 + $Zufall2.Next(0, 20)
-            $Stein = New-Object System.Windows.Shapes.Ellipse
-            $Stein.Width = $Groesse; $Stein.Height = $Groesse
-            $Stein.Fill = [System.Windows.Media.SolidColorBrush]::new([System.Windows.Media.Color]::FromRgb(255,150,110))
-            $StartX = $Zufall2.Next(0, 480 - $Groesse)
-            [System.Windows.Controls.Canvas]::SetLeft($Stein, $StartX)
-            [System.Windows.Controls.Canvas]::SetTop($Stein, -$Groesse)
-            [void]$SpielCanvas.Children.Add($Stein)
-            [void]$Asteroiden.Add(@{ Element = $Stein; Y = [double](-$Groesse); X = [double]$StartX; Groesse = $Groesse; Speed = 4 + $Zufall2.NextDouble() * 5 })
+        if ($Spiel.Tick % 26 -eq 0) {
+            $Breite = 148; $Hoehe = 46
+            $Eintrag = $PhysikFormeln[$Zufall2.Next(0, $PhysikFormeln.Count)]
+
+            $Karte = New-Object System.Windows.Controls.Border
+            $Karte.Width = $Breite; $Karte.Height = $Hoehe
+            $Karte.CornerRadius = New-Object System.Windows.CornerRadius(6)
+            $Karte.Background = [System.Windows.Media.SolidColorBrush]::new([System.Windows.Media.Color]::FromArgb(210,20,10,10))
+            $Karte.BorderBrush = [System.Windows.Media.SolidColorBrush]::new([System.Windows.Media.Color]::FromRgb(255,150,110))
+            $Karte.BorderThickness = New-Object System.Windows.Thickness(1.5)
+            $Inhalt = New-Object System.Windows.Controls.StackPanel
+            $Inhalt.VerticalAlignment = "Center"
+            $TxtFormel = New-Object System.Windows.Controls.TextBlock
+            $TxtFormel.Text = $Eintrag.Formel
+            $TxtFormel.Foreground = [System.Windows.Media.Brushes]::White
+            $TxtFormel.FontSize = 13; $TxtFormel.FontWeight = "Bold"
+            $TxtFormel.HorizontalAlignment = "Center"
+            $TxtName = New-Object System.Windows.Controls.TextBlock
+            $TxtName.Text = $Eintrag.Name
+            $TxtName.Foreground = [System.Windows.Media.SolidColorBrush]::new([System.Windows.Media.Color]::FromRgb(255,190,170))
+            $TxtName.FontSize = 9.5; $TxtName.HorizontalAlignment = "Center"; $TxtName.Margin = "0,2,0,0"
+            [void]$Inhalt.Children.Add($TxtFormel)
+            [void]$Inhalt.Children.Add($TxtName)
+            $Karte.Child = $Inhalt
+
+            $StartX = $Zufall2.Next(0, 480 - $Breite)
+            [System.Windows.Controls.Canvas]::SetLeft($Karte, $StartX)
+            [System.Windows.Controls.Canvas]::SetTop($Karte, -$Hoehe)
+            [void]$SpielCanvas.Children.Add($Karte)
+            [void]$Asteroiden.Add(@{ Element = $Karte; Y = [double](-$Hoehe); X = [double]$StartX; Breite = $Breite; Hoehe = $Hoehe; Speed = 3.5 + $Zufall2.NextDouble() * 4 })
         }
 
         $ZumEntfernen = New-Object System.Collections.ArrayList
@@ -750,8 +787,8 @@ function Oeffne-Minispiel {
             $A.Y += $A.Speed
             [System.Windows.Controls.Canvas]::SetTop($A.Element, $A.Y)
 
-            if (($A.Y + $A.Groesse) -gt 570 -and $A.Y -lt 590 -and
-                ($A.X + $A.Groesse) -gt $Spiel.X -and $A.X -lt ($Spiel.X + $SpielerBreite)) {
+            if (($A.Y + $A.Hoehe) -gt 570 -and $A.Y -lt 590 -and
+                ($A.X + $A.Breite) -gt $Spiel.X -and $A.X -lt ($Spiel.X + $SpielerBreite)) {
                 $Spiel.Laeuft = $false
                 $TxtEnde.Text = "Game Over - Punkte: $($Spiel.Punkte)"
                 $EndePanel.Visibility = "Visible"
