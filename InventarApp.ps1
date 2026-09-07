@@ -292,14 +292,20 @@ function Bild-Laden {
     $Pfad = Bild-Suchen $Basisname
     if (-not $Pfad) { return @{ Bmp = $null; Status = "fehlt" } }
     try {
+        # Datei komplett in den Speicher lesen und von dort dekodieren,
+        # statt BitmapImage direkt per UriSource vom (evtl. Netzlaufwerk-)
+        # Pfad lesen zu lassen - deutlich robuster bei UNC-/Netzpfaden.
+        $Bytes = [System.IO.File]::ReadAllBytes($Pfad)
+        $Stream = New-Object System.IO.MemoryStream(@(,$Bytes))
         $Bmp = New-Object System.Windows.Media.Imaging.BitmapImage
         $Bmp.BeginInit()
         $Bmp.CacheOption = [System.Windows.Media.Imaging.BitmapCacheOption]::OnLoad
-        $Bmp.UriSource = New-Object System.Uri((Resolve-Path $Pfad).Path, [System.UriKind]::Absolute)
+        $Bmp.StreamSource = $Stream
         $Bmp.EndInit()
-        return @{ Bmp = $Bmp; Status = "ok"; Datei = (Split-Path -Leaf $Pfad) }
+        $Bmp.Freeze()
+        return @{ Bmp = $Bmp; Status = "ok"; Datei = (Split-Path -Leaf $Pfad); Groesse = $Bytes.Length }
     } catch {
-        return @{ Bmp = $null; Status = "fehler"; Datei = (Split-Path -Leaf $Pfad) }
+        return @{ Bmp = $null; Status = "fehler"; Datei = (Split-Path -Leaf $Pfad); Fehler = $_.Exception.Message }
     }
 }
 
@@ -310,25 +316,29 @@ if ($NebulaErg.Status -eq "fehlt") { $NebulaErg = Bild-Laden "space-bg" }   # fr
 if ($NebulaErg.Bmp) {
     $FotoBild.Source = $NebulaErg.Bmp; $FotoBild.Visibility = "Visible"
 } elseif ($NebulaErg.Status -eq "fehler") {
-    [void]$FotoMeldungen.Add("nebula ($($NebulaErg.Datei)) konnte nicht geladen werden - Format pruefen")
+    [void]$FotoMeldungen.Add("nebula ($($NebulaErg.Datei)): $($NebulaErg.Fehler)")
 }
 
 $LigoErg = Bild-Laden "ligo-gw"
 if ($LigoErg.Bmp) {
     $LigoBild.Source = $LigoErg.Bmp; $LigoBox.Visibility = "Visible"
 } elseif ($LigoErg.Status -eq "fehler") {
-    [void]$FotoMeldungen.Add("ligo-gw ($($LigoErg.Datei)) konnte nicht geladen werden - Format pruefen")
+    [void]$FotoMeldungen.Add("ligo-gw ($($LigoErg.Datei)): $($LigoErg.Fehler)")
 }
 
 $KaraDelikErg = Bild-Laden "black-holes"
 if ($KaraDelikErg.Bmp) {
     $SchwarzeLochBild.Source = $KaraDelikErg.Bmp; $SchwarzeLochBox.Visibility = "Visible"
 } elseif ($KaraDelikErg.Status -eq "fehler") {
-    [void]$FotoMeldungen.Add("black-holes ($($KaraDelikErg.Datei)) konnte nicht geladen werden - Format pruefen")
+    [void]$FotoMeldungen.Add("black-holes ($($KaraDelikErg.Datei)): $($KaraDelikErg.Fehler)")
 }
 
 if ($FotoMeldungen.Count -gt 0) {
-    $Window.Title = "Inventarisierung - Foto-Problem: " + ($FotoMeldungen -join " | ")
+    [System.Windows.Forms.MessageBox]::Show(
+        ($FotoMeldungen -join "`n`n"),
+        "Foto-Problem - bitte diesen Text weitergeben",
+        [System.Windows.Forms.MessageBoxButtons]::OK,
+        [System.Windows.Forms.MessageBoxIcon]::Warning) | Out-Null
 }
 
 # Direkt beim Start anzeigen, welche Fotos gefunden wurden - damit man
