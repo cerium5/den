@@ -247,6 +247,7 @@ $InterneDisplays = @("LGD","AUO","BOE","CMN","SHP","IVO","CSO","SDC","LEN","PNP"
 
 $Reader = New-Object System.Xml.XmlNodeReader $Xaml
 $Window = [Windows.Markup.XamlReader]::Load($Reader)
+$Window.Title = "Inventarisierung [Build fotos-v2]"
 
 $TxtRaum          = $Window.FindName("TxtRaum")
 $TxtStandort      = $Window.FindName("TxtStandort")
